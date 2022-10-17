@@ -1,12 +1,12 @@
-using System.Net.Mime;
-using System.Text.Json;
 using Catalog.Repositories;
 using Catalog.Settings;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
+using MongoDB.Bson;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using System.Text.Json;
+using System.Net.Mime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +23,13 @@ builder.Services.AddSwaggerGen();
 BsonSerializer.RegisterSerializer(new GuidSerializer(BsonType.String));
 BsonSerializer.RegisterSerializer(new DateTimeOffsetSerializer(BsonType.String));
 var mongoDbSettings = builder.Configuration.GetSection("MongoDbSettings").Get<MongoDbSettings>();
+
+builder.Services.AddHealthChecks()
+.AddMongoDb(mongoDbSettings.ConnectionString,
+name: "mongodb",
+timeout: TimeSpan.FromSeconds(3),
+tags: new[]{"ready"});
+
 builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
 {
     
@@ -47,11 +54,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 
-builder.Services.AddHealthChecks()
-.AddMongoDb(mongoDbSettings.ConnectionString,
-name: "mongodb",
-timeout: TimeSpan.FromSeconds(3),
-tags: new[]{"ready"});
+
 
 app.UseHttpsRedirection();
 
@@ -59,10 +62,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllers();
-    endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions{
+
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions{
         Predicate = (check) => check.Tags.Contains("ready"),
         ResponseWriter = async(context, report) =>
         {
@@ -86,6 +87,6 @@ app.UseEndpoints(endpoints =>
     app.MapHealthChecks("/health/live", new HealthCheckOptions{
         Predicate = (_) => false
     });
-});
+
 
 app.Run();
